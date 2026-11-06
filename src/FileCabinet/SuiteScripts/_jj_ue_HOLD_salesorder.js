@@ -22,7 +22,7 @@
 //  *
 //  * REVISION HISTORY
 //  *
-//  * @version 2.1  Corp Design-USA-NS/SCA-1 : 05-Novemnber-2026 : Created the initial build by JJ0494
+//  * @version 2.1  Corp Design-USA-NS/SCA-1 : 05-November-2026 : Created the initial build by JJ0494
 //  *
 //  *
 //  ******************************************************************************
