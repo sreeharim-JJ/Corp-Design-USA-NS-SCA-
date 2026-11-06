@@ -31,57 +31,15 @@
 define(['N/search','N/email','N/runtime','N/log','N/ui/serverWidget'
 ], function (search, email, runtime, log, serverWidget) {
 
-    function getCustomerData(customerId, columns) {
+    function getCustomerData(customerId) {
         return search.lookupFields({
             type: search.Type.CUSTOMER,
             id: customerId,
-            columns: columns
-        });
-    }
-
-    function calculateExposure(balance, orderTotal) {
-        return (Number(balance) || 0) + (Number(orderTotal) || 0);
-    }
-
-    function isCreditLimitExceeded(customerId, orderTotal) {
-
-        const customer = getCustomerData(customerId, [
-            'creditlimit',
-            'balance'
-        ]);
-
-        const creditLimit = Number(customer.creditlimit) || 0;
-        const balance = Number(customer.balance) || 0;
-        const exposure = calculateExposure(balance, orderTotal);
-
-        return {
-            exceeded: creditLimit > 0 && exposure >= creditLimit,
-            creditLimit: creditLimit,
-            balance: balance,
-            exposure: exposure
-        };
-    }
-
-    function sendHoldEmail(customerId, tranId) {
-
-        const customer = getCustomerData(customerId, [
-            'email'
-        ]);
-
-        if (!customer.email) {
-            return;
-        }
-
-        email.send({
-            author: -5,
-            recipients: customer.email,
-            subject: 'Sales Order On Hold',
-            body:
-                'Dear Customer,\n\n' +
-                'Your Sales Order #' + tranId +
-                ' has been placed on HOLD because your credit limit has been reached or exceeded.\n\n' +
-                'Please contact our accounts team.\n\n' +
-                'Thank You.'
+            columns: [
+                'creditlimit',
+                'balance',
+                'email'
+            ]
         });
     }
 
@@ -90,21 +48,29 @@ define(['N/search','N/email','N/runtime','N/log','N/ui/serverWidget'
         const form = context.form;
         const rec = context.newRecord;
 
-        const holdField = form.getField({
-            id: 'custbody_jj_on_hold'
-        });
-
-        if (holdField) {
-            holdField.updateDisplayType({
-                displayType: serverWidget.FieldDisplayType.INLINE
+        try {
+            const holdField = form.getField({
+                id: 'custbody_jj_on_hold'
             });
+
+            if (holdField) {
+                holdField.updateDisplayType({
+                    displayType: serverWidget.FieldDisplayType.INLINE
+                });
+            }
+        } catch (e) {
+            log.error('beforeLoad Error', e);
         }
 
         if (context.type !== context.UserEventType.VIEW) {
             return;
         }
 
-        if (!rec.getValue('custbody_jj_on_hold')) {
+        const isOnHold = rec.getValue({
+            fieldId: 'custbody_jj_on_hold'
+        });
+
+        if (!isOnHold) {
             return;
         }
 
@@ -123,39 +89,78 @@ define(['N/search','N/email','N/runtime','N/log','N/ui/serverWidget'
 
     function beforeSubmit(context) {
 
-        if (context.type !== context.UserEventType.CREATE) {
+        if (
+            context.type !== context.UserEventType.CREATE &&
+            context.type !== context.UserEventType.EDIT
+        ) {
             return;
         }
 
-        const rec = context.newRecord;
+        try {
 
-        if (rec.getValue('terms')) {
-            return;
-        }
+            const rec = context.newRecord;
 
-        const customerId = rec.getValue('entity');
-
-        if (!customerId) {
-            return;
-        }
-
-        const result = isCreditLimitExceeded(
-            customerId,
-            rec.getValue('total')
-        );
-
-        if (result.exceeded) {
-
-            rec.setValue({
-                fieldId: 'custbody_jj_on_hold',
-                value: true
+            const customerId = rec.getValue({
+                fieldId: 'entity'
             });
 
-            log.audit({
-                title: 'SO On Hold',
+            if (!customerId) {
+                return;
+            }
+
+            const customer = getCustomerData(customerId);
+
+            const creditLimit =
+                parseFloat(customer.creditlimit) || 0;
+
+            const balance =
+                parseFloat(customer.balance) || 0;
+
+            const orderTotal =
+                parseFloat(rec.getValue({
+                    fieldId: 'total'
+                })) || 0;
+
+            const exposure = balance + orderTotal;
+
+            log.debug({
+                title: 'Credit Check',
                 details:
-                    'Exposure: ' + result.exposure +
-                    ', Credit Limit: ' + result.creditLimit
+                    'Credit Limit=' + creditLimit +
+                    ', Balance=' + balance +
+                    ', Order Total=' + orderTotal +
+                    ', Exposure=' + exposure
+            });
+
+            if (
+                creditLimit > 0 &&
+                exposure >= creditLimit
+            ) {
+
+                rec.setValue({
+                    fieldId: 'custbody_jj_on_hold',
+                    value: true
+                });
+
+                log.audit({
+                    title: 'Order Put On Hold',
+                    details:
+                        'Credit Limit=' + creditLimit +
+                        ', Exposure=' + exposure
+                });
+
+            } else {
+
+                rec.setValue({
+                    fieldId: 'custbody_jj_on_hold',
+                    value: false
+                });
+            }
+
+        } catch (e) {
+            log.error({
+                title: 'beforeSubmit Error',
+                details: e
             });
         }
     }
@@ -166,16 +171,55 @@ define(['N/search','N/email','N/runtime','N/log','N/ui/serverWidget'
             return;
         }
 
-        const rec = context.newRecord;
+        try {
 
-        if (!rec.getValue('custbody_jj_on_hold')) {
-            return;
+            const rec = context.newRecord;
+
+            const isOnHold = rec.getValue({
+                fieldId: 'custbody_jj_on_hold'
+            });
+
+            if (!isOnHold) {
+                return;
+            }
+
+            const customerId = rec.getValue({
+                fieldId: 'entity'
+            });
+
+            const tranId = rec.getValue({
+                fieldId: 'tranid'
+            });
+
+            const customer = getCustomerData(customerId);
+
+            if (!customer.email) {
+                return;
+            }
+
+            email.send({
+                author: -5,
+                recipients: customer.email,
+                subject: 'Sales Order On Hold',
+                body:
+                    'Dear Customer,\n\n' +
+                    'Your Sales Order #' + tranId +
+                    ' has been placed on HOLD because your credit limit has been reached or exceeded.\n\n' +
+                    'Please make the required payment or contact Accounts.\n\n' +
+                    'Thank You.'
+            });
+
+            log.audit({
+                title: 'Hold Email Sent',
+                details: customer.email
+            });
+
+        } catch (e) {
+            log.error({
+                title: 'afterSubmit Error',
+                details: e
+            });
         }
-
-        sendHoldEmail(
-            rec.getValue('entity'),
-            rec.getValue('tranid')
-        );
     }
 
     return {
