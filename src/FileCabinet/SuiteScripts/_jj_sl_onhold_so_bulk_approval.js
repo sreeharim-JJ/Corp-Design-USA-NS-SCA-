@@ -27,219 +27,269 @@
 //  ******************************************************************************
 // *********/
 
-define(['N/ui/serverWidget','N/search','N/record','N/redirect','N/log'],
-     function (serverWidget, search, record, redirect, log) {
-    function onRequest(context) {
-        try {
-            log.audit({
-                title: 'Bulk Approval Suitelet',
-                details: 'Request Method: ' + context.request.method
-            });
+define(['N/ui/serverWidget', 'N/search', 'N/record', 'N/redirect', 'N/log'],
+    function (serverWidget, search, record, redirect, log) {
 
-            if (context.request.method === 'GET') {
+        function onRequest(context) {
 
-                const form = serverWidget.createForm({
-                    title: 'Bulk Approval of ON-HOLD Sales Orders'
+            try {
+
+                log.audit({
+                    title: 'Bulk Approval Suitelet',
+                    details: 'Request Method: ' + context.request.method
                 });
 
-                const sublist = form.addSublist({
-                    id: 'custpage_orders',
-                    type: serverWidget.SublistType.LIST,
-                    label: 'ON-HOLD Sales Orders'
-                });
+                if (context.request.method === 'GET') {
 
-                sublist.addMarkAllButtons();
+                    const form = serverWidget.createForm({
+                        title: 'Bulk Approval of ON-HOLD Sales Orders'
+                    });
 
-                sublist.addField({
-                    id: 'custpage_select',
-                    type: serverWidget.FieldType.CHECKBOX,
-                    label: 'Select'
-                });
+                    const sublist = form.addSublist({
+                        id: 'custpage_orders',
+                        type: serverWidget.SublistType.LIST,
+                        label: 'ON-HOLD Sales Orders'
+                    });
 
-                sublist.addField({
-                    id: 'custpage_soid',
-                    type: serverWidget.FieldType.TEXT,
-                    label: 'SO Internal ID'
-                });
+                    sublist.addMarkAllButtons();
 
-                sublist.addField({
-                    id: 'custpage_sonum',
-                    type: serverWidget.FieldType.TEXT,
-                    label: 'SO Number'
-                });
+                    sublist.addField({
+                        id: 'custpage_select',
+                        type: serverWidget.FieldType.CHECKBOX,
+                        label: 'Select'
+                    });
 
-                sublist.addField({
-                    id: 'custpage_customer',
-                    type: serverWidget.FieldType.TEXT,
-                    label: 'Customer'
-                });
-                
+                    sublist.addField({
+                        id: 'custpage_soid',
+                        type: serverWidget.FieldType.TEXT,
+                        label: 'SO Internal ID'
+                    });
 
-                const soSearch = search.create({
-   type: "salesorder",
-   settings:[{"name":"consolidationtype","value":"ACCTTYPE"},{"name":"includeperiodendtransactions","value":"F"}],
-   filters:
-   [
-      ["mainline","is","T"], 
-      "AND", 
-      ["type","anyof","SalesOrd"], 
-      "AND", 
-      ["custbody_jj_on_hold","is","T"]
-   ],
-   columns:
-   [
-      search.createColumn({name: "entity", label: "Name"}),
-      search.createColumn({name: "tranid", label: "Document Number"}),
-      search.createColumn({name: "internalid", label: "Internal ID"}),
-      search.createColumn({name: "amount", label: "Amount"})
-   ]
-});
+                    sublist.addField({
+                        id: 'custpage_sonum',
+                        type: serverWidget.FieldType.TEXT,
+                        label: 'SO Number'
+                    });
 
-                let line = 0;
+                    sublist.addField({
+                        id: 'custpage_customer',
+                        type: serverWidget.FieldType.TEXT,
+                        label: 'Customer'
+                    });
 
-                soSearch.run().each(function (result) {
+                    const soSearch = search.create({
+                        type: "salesorder",
+                        settings: [
+                            {
+                                name: "consolidationtype",
+                                value: "ACCTTYPE"
+                            },
+                            {
+                                name: "includeperiodendtransactions",
+                                value: "F"
+                            }
+                        ],
+                        filters: [
+                            ["mainline", "is", "T"],
+                            "AND",
+                            ["type", "anyof", "SalesOrd"],
+                            "AND",
+                            ["custbody_jj_on_hold", "is", "T"]
+                        ],
+                        columns: [
+                            search.createColumn({
+                                name: "entity",
+                                label: "Name"
+                            }),
+                            search.createColumn({
+                                name: "tranid",
+                                label: "Document Number"
+                            }),
+                            search.createColumn({
+                                name: "internalid",
+                                label: "Internal ID"
+                            }),
+                            search.createColumn({
+                                name: "amount",
+                                label: "Amount"
+                            })
+                        ]
+                    });
+
+                    let line = 0;
+
+                    soSearch.run().each(function (result) {
+
+                        try {
+
+                            sublist.setSublistValue({
+                                id: 'custpage_soid',
+                                line: line,
+                                value: result.getValue('internalid').toString()
+                            });
+
+                            sublist.setSublistValue({
+                                id: 'custpage_sonum',
+                                line: line,
+                                value: result.getValue('tranid')
+                            });
+
+                            sublist.setSublistValue({
+                                id: 'custpage_customer',
+                                line: line,
+                                value: result.getText('entity')
+                            });
+
+                            line++;
+
+                            return true;
+
+                        } catch (e) {
+
+                            log.error({
+                                title: 'Error Loading Search Result',
+                                details: e
+                            });
+
+                            return true;
+                        }
+                    });
+
+                    log.debug({
+                        title: 'Orders Loaded',
+                        details: 'Total Orders Found: ' + line
+                    });
+
+                    form.addSubmitButton({
+                        label: 'Approve Selected Orders'
+                    });
+
+                    context.response.writePage(form);
+
+                } else {
 
                     try {
 
-                        sublist.setSublistValue({
-                            id: 'custpage_soid',
-                            line: line,
-                            value: result.getValue('internalid').toString()
+                        const lineCount = context.request.getLineCount({
+                            group: 'custpage_orders'
                         });
 
-                        sublist.setSublistValue({
-                            id: 'custpage_sonum',
-                            line: line,
-                            value: result.getValue('tranid')
-                        });
+                        let hasSelection = false;
 
-                        sublist.setSublistValue({
-                            id: 'custpage_customer',
-                            line: line,
-                            value: result.getText('entity')
-                        });
+                        for (let i = 0; i < lineCount; i++) {
 
-                        line++;
-
-                        return true;
-
-                    } catch (e) {
-
-                        log.error({
-                            title: 'Error Loading Search Result',
-                            details: e
-                        });
-
-                        return true;
-                    }
-                });
-
-                log.debug({
-                    title: 'Orders Loaded',
-                    details: 'Total Orders Found: ' + line
-                });
-
-                form.addSubmitButton({
-                    label: 'Approve Selected Orders'
-                });
-
-                context.response.writePage(form);
-
-            } else {
-
-                try {
-
-                    const lineCount = context.request.getLineCount({
-                        group: 'custpage_orders'
-                    });
-
-                    log.audit({
-                        title: 'Bulk Approval Started',
-                        details: 'Line Count: ' + lineCount
-                    });
-
-                    const approvedCount = 0;
-
-                    for (let i = 0; i < lineCount; i++) {
-
-                        const selected = context.request.getSublistValue({
-                            group: 'custpage_orders',
-                            name: 'custpage_select',
-                            line: i
-                        });
-
-                        if (selected === 'T') {
-
-                            const soId = context.request.getSublistValue({
+                            const selected = context.request.getSublistValue({
                                 group: 'custpage_orders',
-                                name: 'custpage_soid',
+                                name: 'custpage_select',
                                 line: i
                             });
 
-                            try {
-
-                                record.submitFields({
-                                    type: record.Type.SALES_ORDER,
-                                    id: soId,
-                                    values: {
-                                        custbody_jj_on_hold: false
-                                    }
-                                });
-
-                                approvedCount++;
-
-                                log.audit({
-                                    title: 'Sales Order Approved',
-                                    details: 'SO Internal ID: ' + soId
-                                });
-
-                            } catch (approveErr) {
-
-                                log.error({
-                                    title: 'Approval Failed - SO ' + soId,
-                                    details: approveErr
-                                });
+                            if (selected === 'T') {
+                                hasSelection = true;
+                                break;
                             }
                         }
+
+                        if (!hasSelection) {
+
+                            context.response.write(
+                                '<html><body>' +
+                                '<script>' +
+                                'alert("Please select at least one Sales Order.");' +
+                                'window.history.back();' +
+                                '</script>' +
+                                '</body></html>'
+                            );
+
+                            return;
+                        }
+
+                        log.audit({
+                            title: 'Bulk Approval Started',
+                            details: 'Line Count: ' + lineCount
+                        });
+
+                        let approvedCount = 0;
+
+                        for (let i = 0; i < lineCount; i++) {
+
+                            const selected = context.request.getSublistValue({
+                                group: 'custpage_orders',
+                                name: 'custpage_select',
+                                line: i
+                            });
+
+                            if (selected === 'T') {
+
+                                const soId = context.request.getSublistValue({
+                                    group: 'custpage_orders',
+                                    name: 'custpage_soid',
+                                    line: i
+                                });
+
+                                try {
+
+                                    record.submitFields({
+                                        type: record.Type.SALES_ORDER,
+                                        id: soId,
+                                        values: {
+                                            custbody_jj_on_hold: false
+                                        }
+                                    });
+
+                                    approvedCount++;
+
+                                    log.audit({
+                                        title: 'Sales Order Approved',
+                                        details: 'SO Internal ID: ' + soId
+                                    });
+
+                                } catch (approveErr) {
+
+                                    log.error({
+                                        title: 'Approval Failed - SO ' + soId,
+                                        details: approveErr
+                                    });
+                                }
+                            }
+                        }
+
+                        log.audit({
+                            title: 'Bulk Approval Completed',
+                            details: approvedCount + ' orders approved.'
+                        });
+
+                        redirect.toSuitelet({
+                            scriptId: 'customscript_jj_sl_hold_salesorder',
+                            deploymentId: 'customdeploy_jj_sl_hold_salesorder'
+                        });
+
+                    } catch (postErr) {
+
+                        log.error({
+                            title: 'POST Processing Error',
+                            details: postErr
+                        });
+
+                        throw postErr;
                     }
-
-                    log.audit({
-                        title: 'Bulk Approval Completed',
-                        details: approvedCount + ' orders approved.'
-                    });
-
-                    redirect.toSuitelet({
-                        scriptId: 'customscript_jj_sl_hold_salesorder',
-                        deploymentId: 'customdeploy_jj_sl_hold_salesorder'
-                    });
-
-                } catch (postErr) {
-
-                    log.error({
-                        title: 'POST Processing Error',
-                        details: postErr
-                    });
-
-                    throw postErr;
                 }
+
+            } catch (e) {
+
+                log.error({
+                    title: 'Suitelet Error',
+                    details: JSON.stringify(e)
+                });
+
+                context.response.write(
+                    '<h3>Error Occurred</h3><br/>' +
+                    e.name + ' : ' + e.message
+                );
             }
-
-        } catch (e) {
-
-            log.error({
-                title: 'Suitelet Error',
-                details: JSON.stringify(e)
-            });
-
-            context.response.write(
-                '<h3>Error Occurred</h3><br/>' +
-                e.name + ' : ' + e.message
-            );
         }
-    }
 
-    return {
-        onRequest: onRequest
-    };
-
-});
+        return {
+            onRequest: onRequest
+        };
+    });

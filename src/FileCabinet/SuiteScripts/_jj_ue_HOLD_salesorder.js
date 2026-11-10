@@ -28,10 +28,22 @@
 //  ******************************************************************************
 // *********/
 
-define(['N/search','N/email','N/runtime','N/log','N/ui/serverWidget'
-], function (search, email, runtime, log, serverWidget) {
+define([
+    'N/search',
+    'N/email',
+    'N/runtime',
+    'N/log',
+    'N/ui/serverWidget'
+], function (
+    search,
+    email,
+    runtime,
+    log,
+    serverWidget
+) {
 
     function getCustomerData(customerId) {
+
         return search.lookupFields({
             type: search.Type.CUSTOMER,
             id: customerId,
@@ -49,17 +61,24 @@ define(['N/search','N/email','N/runtime','N/log','N/ui/serverWidget'
         const rec = context.newRecord;
 
         try {
+
             const holdField = form.getField({
                 id: 'custbody_jj_on_hold'
             });
 
             if (holdField) {
+
                 holdField.updateDisplayType({
                     displayType: serverWidget.FieldDisplayType.INLINE
                 });
             }
+
         } catch (e) {
-            log.error('beforeLoad Error', e);
+
+            log.error({
+                title: 'beforeLoad Error',
+                details: e
+            });
         }
 
         if (context.type !== context.UserEventType.VIEW) {
@@ -72,6 +91,25 @@ define(['N/search','N/email','N/runtime','N/log','N/ui/serverWidget'
 
         if (!isOnHold) {
             return;
+        }
+
+        try {
+
+            form.removeButton({
+                id: 'process'
+            });
+
+            log.audit({
+                title: 'Fulfill Button Removed',
+                details: 'Sales Order is on Hold'
+            });
+
+        } catch (e) {
+
+            log.error({
+                title: 'Unable to Remove Fulfill Button',
+                details: e
+            });
         }
 
         if (runtime.getCurrentUser().role == 3) {
@@ -117,9 +155,11 @@ define(['N/search','N/email','N/runtime','N/log','N/ui/serverWidget'
                 parseFloat(customer.balance) || 0;
 
             const orderTotal =
-                parseFloat(rec.getValue({
-                    fieldId: 'total'
-                })) || 0;
+                parseFloat(
+                    rec.getValue({
+                        fieldId: 'total'
+                    })
+                ) || 0;
 
             const exposure = balance + orderTotal;
 
@@ -133,31 +173,24 @@ define(['N/search','N/email','N/runtime','N/log','N/ui/serverWidget'
             });
 
             if (
-                creditLimit > 0 &&
-                exposure >= creditLimit
-            ) {
-
-                rec.setValue({
-                    fieldId: 'custbody_jj_on_hold',
-                    value: true
-                });
-
-                log.audit({
-                    title: 'Order Put On Hold',
-                    details:
-                        'Credit Limit=' + creditLimit +
-                        ', Exposure=' + exposure
-                });
-
-            } else {
-
-                rec.setValue({
-                    fieldId: 'custbody_jj_on_hold',
-                    value: false
-                });
-            }
+   creditLimit > 0 && exposure >= creditLimit
+)
+{
+    rec.setValue({
+        fieldId: 'custbody_jj_on_hold',
+        value: true
+    });
+}
+else
+{
+    rec.setValue({
+        fieldId: 'custbody_jj_on_hold',
+        value: false
+    });
+}
 
         } catch (e) {
+
             log.error({
                 title: 'beforeSubmit Error',
                 details: e
@@ -215,6 +248,7 @@ define(['N/search','N/email','N/runtime','N/log','N/ui/serverWidget'
             });
 
         } catch (e) {
+
             log.error({
                 title: 'afterSubmit Error',
                 details: e

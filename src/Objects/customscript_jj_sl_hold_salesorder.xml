@@ -1,0 +1,25 @@
+<suitelet scriptid="customscript_jj_sl_hold_salesorder">
+  <description></description>
+  <isinactive>F</isinactive>
+  <name>JJ SL HOLD SALESORDER</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>T</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteScripts/_jj_sl_onhold_so_bulk_approval.js]</scriptfile>
+  <scriptdeployments>
+    <scriptdeployment scriptid="customdeploy_jj_sl_hold_salesorder">
+      <allemployees>F</allemployees>
+      <allpartners>F</allpartners>
+      <allroles>T</allroles>
+      <audslctrole></audslctrole>
+      <eventtype></eventtype>
+      <isdeployed>T</isdeployed>
+      <isonline>T</isonline>
+      <loglevel>ERROR</loglevel>
+      <runasrole>ADMINISTRATOR</runasrole>
+      <status>RELEASED</status>
+      <title>JJ SL HOLD SALESORDER</title>
+    </scriptdeployment>
+  </scriptdeployments>
+</suitelet>
